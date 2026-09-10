@@ -1,5 +1,5 @@
 {
-  "name": "Itinerary v3",
+  "name": "Itinerary",
   "short_name": "Itinerary",
   "description": "Offline-first flight itinerary, UTC/local time, Julian date, and FDP calculator.",
   "start_url": "./",

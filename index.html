@@ -2,11 +2,21 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Itinerary</title>
+
+<link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#0f1419">
-<link rel="manifest" href="./manifest.webmanifest">
-<link rel="apple-touch-icon" href="./icon-192.png">
-<title>Itinerary v3</title>
+
+<!-- iOS "Add to Home Screen" support -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Itinerary">
+<link rel="apple-touch-icon" href="icon-192.png">
+
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
+
 <style>
   :root {
     --bg: #0f1419;
@@ -118,6 +128,18 @@
     width: 15px;
     height: 15px;
     cursor: pointer;
+  }
+  .offset-slider {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    width: 110px;
+  }
+  .offset-slider input[type="range"] {
+    width: 100%;
+    accent-color: var(--accent);
+    cursor: pointer;
+    height: 4px;
   }
   .fdp-options {
     display: flex;
@@ -368,7 +390,7 @@
 </head>
 <body>
 
-<h1>Itinerary v3 <span id="connectionStatus" style="font-size:11px;color:var(--text-dim);font-weight:400;margin-left:8px">● Offline-ready</span></h1>
+<h1>Itinerary</h1>
 <div class="hint">Set the mission start time below, then edit Flight and Ground time per leg — Departure and Landing are computed automatically and shown as read-only Zulu/Local text.</div>
 
 <div class="mission-start-row">
@@ -432,34 +454,28 @@
 let legs = [];
 let nextId = 1;
 let airportDB = {}; // { ICAO: "UTC offset string" }
-const AIRPORT_DB_STORAGE_KEY = 'itinerary-v3-airport-db-v1';
 
-// Keep the airport/UTC database on this device so it survives closing
-// the app, refreshing the page, and working offline.
-function loadAirportDBFromDevice() {
-  try {
-    const saved = localStorage.getItem(AIRPORT_DB_STORAGE_KEY);
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-        airportDB = parsed;
-      }
-    }
-  } catch (err) {
-    console.warn('Could not load Airport DB from device storage.', err);
-  }
-}
+const AIRPORT_DB_STORAGE_KEY = 'itinerary-airport-db';
 
-function saveAirportDBToDevice() {
+function saveAirportDB() {
   try {
     localStorage.setItem(AIRPORT_DB_STORAGE_KEY, JSON.stringify(airportDB));
   } catch (err) {
-    console.warn('Could not save Airport DB to device storage.', err);
+    console.warn('Could not save airport database:', err);
   }
 }
 
-// Load the saved database immediately when the app starts.
-loadAirportDBFromDevice();
+function loadAirportDB() {
+  try {
+    const raw = localStorage.getItem(AIRPORT_DB_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') airportDB = parsed;
+    }
+  } catch (err) {
+    console.warn('Could not load airport database:', err);
+  }
+}
 
 function populateDatalist() {
   const dl = document.getElementById('icao-datalist');
@@ -496,7 +512,7 @@ function addAirportEntry() {
   const utc = utcInput.value.trim();
   if (!code || !utc) return;
   airportDB[code] = utc;
-  saveAirportDBToDevice();
+  saveAirportDB();
   codeInput.value = '';
   utcInput.value = '';
   populateDatalist();
@@ -506,13 +522,13 @@ function addAirportEntry() {
 
 function updateAirportEntry(code, val) {
   airportDB[code] = val.trim();
-  saveAirportDBToDevice();
+  saveAirportDB();
   recompute();
 }
 
 function deleteAirportEntry(code) {
   delete airportDB[code];
-  saveAirportDBToDevice();
+  saveAirportDB();
   populateDatalist();
   renderAirportPanel();
   recompute();
@@ -524,6 +540,10 @@ function onICAOChange(id, field, rawValue) {
   const code = (rawValue || '').trim().toUpperCase();
   leg[field] = code;
   const utcField = field === 'icaoDep' ? 'utcDep' : 'utcLand';
+
+  if (field === 'icaoDep') {
+    leg._icaoDepManual = true;
+  }
 
   if (!code) {
     render();
@@ -539,8 +559,8 @@ function onICAOChange(id, field, rawValue) {
     if (entered !== null && entered.trim() !== '') {
       const val = entered.trim();
       airportDB[code] = val;
-      saveAirportDBToDevice();
       leg[utcField] = val;
+      saveAirportDB();
       populateDatalist();
     }
   }
@@ -555,14 +575,14 @@ function onUTCChange(id, field, val) {
   const code = (leg[icaoField] || '').trim().toUpperCase();
   if (code) {
     airportDB[code] = val;
-    saveAirportDBToDevice();
+    saveAirportDB();
     populateDatalist();
   }
   recompute();
 }
 
 function newLeg(departure = '') {
-  return { id: nextId++, departure, duration: '', ground: '', offset: '', offsetEnabled: false, _offsetManual: false, fdpBaseHours: null, icaoDep: '', icaoLand: '', utcDep: '', utcLand: '' };
+  return { id: nextId++, departure, duration: '', ground: '', offset: '', offsetEnabled: false, _offsetManual: false, fdpBaseHours: null, icaoDep: '', icaoLand: '', utcDep: '', utcLand: '', _icaoDepManual: false };
 }
 
 function computeJulian(date) {
@@ -589,6 +609,27 @@ function fmtHHMM(mins) {
   const h = Math.floor(mins / 60);
   const m = mins % 60;
   return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
+}
+
+function offsetSlider(id, value) {
+  const mins = parseHHMM(value);
+  const startMin = mins !== null ? mins : 0;
+  return `
+    <div class="offset-slider">
+      <input type="range" min="0" max="1440" step="5" value="${startMin}"
+            oninput="document.getElementById('offsetLabel-${id}').textContent = fmtHHMM(parseInt(this.value,10))"
+            onchange="onOffsetSliderChange(${id}, this.value)">
+      <span id="offsetLabel-${id}" class="dyn-text">${fmtHHMM(startMin)}</span>
+    </div>
+  `;
+}
+
+function onOffsetSliderChange(id, val) {
+  const leg = legs.find(l => l.id === id);
+  const mins = Math.max(0, Math.min(1440, parseInt(val, 10) || 0));
+  leg.offset = fmtHHMM(mins);
+  leg._offsetManual = true;
+  recompute();
 }
 
 function toLocalInputValue(date) {
@@ -623,6 +664,20 @@ function formatZuluLabel(date) {
 }
 
 function recompute() {
+  // Default each leg's Departure ICAO to the previous leg's Landing ICAO,
+  // unless the user has manually edited this leg's Departure ICAO.
+  for (let i = 1; i < legs.length; i++) {
+    const leg = legs[i];
+    if (leg._icaoDepManual) continue;
+    const prevLand = legs[i - 1].icaoLand || '';
+    if (leg.icaoDep !== prevLand) {
+      leg.icaoDep = prevLand;
+      if (prevLand && Object.prototype.hasOwnProperty.call(airportDB, prevLand)) {
+        leg.utcDep = airportDB[prevLand];
+      }
+    }
+  }
+
   let carryDeparture = null;
   legs.forEach((leg, i) => {
     if (i > 0 && carryDeparture !== null && !leg._manualDeparture) {
@@ -787,7 +842,7 @@ function render() {
         <div class="field">
           <span class="stack-label">Offset</span>
           <div class="offset-row">
-            ${durationPicker(leg.id, 'offset', leg.offset)}
+            ${offsetSlider(leg.id, leg.offset)}
             <input type="checkbox" class="offset-toggle" ${leg.offsetEnabled ? 'checked' : ''}
                   onchange="toggleOffset(${leg.id}, this.checked)">
           </div>
@@ -1060,7 +1115,7 @@ function exportToText() {
   const ZULU_DATE_W = 26;
 
   const lines = [];
-  lines.push('ITINERARY V3');
+  lines.push('ITINERARY');
   lines.push('Mission Start (Zulu): ' + (legs.length ? (legs[0].zuluDepText || '--') : '--'));
   lines.push('** = ground time greater than 16:29   [xxxx] = Zulu Julian date');
   lines.push('');
@@ -1104,7 +1159,7 @@ function exportToText() {
   const a = document.createElement('a');
   const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-');
   a.href = url;
-  a.download = `itinerary-v3-${stamp}.txt`;
+  a.download = `itinerary-${stamp}.txt`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -1125,6 +1180,7 @@ function saveToFile() {
     offsetEnabled: !!l.offsetEnabled,
     offsetManual: !!l._offsetManual,
     fdpBaseHours: l.fdpBaseHours || null,
+    icaoDepManual: !!l._icaoDepManual,
     manual: !!l._manualDeparture
   }));
   const payload = { legs: legsData, airportDB: airportDB };
@@ -1133,7 +1189,7 @@ function saveToFile() {
   const a = document.createElement('a');
   const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-');
   a.href = url;
-  a.download = `itinerary-v3-${stamp}.json`;
+  a.download = `itinerary-${stamp}.json`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -1151,8 +1207,9 @@ function loadFromFile(event) {
       // Support both the new { legs, airportDB } format and the old plain-array format.
       const data = Array.isArray(parsed) ? parsed : parsed.legs;
       if (!Array.isArray(data)) throw new Error('bad format');
-      airportDB = (!Array.isArray(parsed) && parsed.airportDB) ? parsed.airportDB : {};
-      saveAirportDBToDevice();
+      const loadedAirportDB = (!Array.isArray(parsed) && parsed.airportDB) ? parsed.airportDB : {};
+      airportDB = Object.assign({}, airportDB, loadedAirportDB);
+      saveAirportDB();
       legs = data.map(d => {
         const leg = newLeg(d.departure || '');
         leg.icaoDep = d.icaoDep || d.icao || '';
@@ -1165,6 +1222,7 @@ function loadFromFile(event) {
         leg.offsetEnabled = !!d.offsetEnabled;
         leg._offsetManual = !!d.offsetManual;
         leg.fdpBaseHours = d.fdpBaseHours || null;
+        leg._icaoDepManual = !!d.icaoDepManual;
         leg._manualDeparture = !!d.manual;
         return leg;
       });
@@ -1198,10 +1256,21 @@ function resetAll() {
 }
 
 // init
+loadAirportDB();
+populateDatalist();
 const first = newLeg();
 first._manualDeparture = true;
 legs.push(first);
 recompute();
+
+// PWA: register service worker for offline caching
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(err => {
+      console.warn('Service worker registration failed:', err);
+    });
+  });
+}
 </script>
 
 </body>

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'itinerary-v3-shell-v1';
+const CACHE_NAME = 'itinerary-shell-cache';
 const APP_SHELL = [
   './',
   './index.html',
