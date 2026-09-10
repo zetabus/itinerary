@@ -432,6 +432,34 @@
 let legs = [];
 let nextId = 1;
 let airportDB = {}; // { ICAO: "UTC offset string" }
+const AIRPORT_DB_STORAGE_KEY = 'itinerary-v3-airport-db-v1';
+
+// Keep the airport/UTC database on this device so it survives closing
+// the app, refreshing the page, and working offline.
+function loadAirportDBFromDevice() {
+  try {
+    const saved = localStorage.getItem(AIRPORT_DB_STORAGE_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        airportDB = parsed;
+      }
+    }
+  } catch (err) {
+    console.warn('Could not load Airport DB from device storage.', err);
+  }
+}
+
+function saveAirportDBToDevice() {
+  try {
+    localStorage.setItem(AIRPORT_DB_STORAGE_KEY, JSON.stringify(airportDB));
+  } catch (err) {
+    console.warn('Could not save Airport DB to device storage.', err);
+  }
+}
+
+// Load the saved database immediately when the app starts.
+loadAirportDBFromDevice();
 
 function populateDatalist() {
   const dl = document.getElementById('icao-datalist');
@@ -468,6 +496,7 @@ function addAirportEntry() {
   const utc = utcInput.value.trim();
   if (!code || !utc) return;
   airportDB[code] = utc;
+  saveAirportDBToDevice();
   codeInput.value = '';
   utcInput.value = '';
   populateDatalist();
@@ -477,11 +506,13 @@ function addAirportEntry() {
 
 function updateAirportEntry(code, val) {
   airportDB[code] = val.trim();
+  saveAirportDBToDevice();
   recompute();
 }
 
 function deleteAirportEntry(code) {
   delete airportDB[code];
+  saveAirportDBToDevice();
   populateDatalist();
   renderAirportPanel();
   recompute();
@@ -508,6 +539,7 @@ function onICAOChange(id, field, rawValue) {
     if (entered !== null && entered.trim() !== '') {
       const val = entered.trim();
       airportDB[code] = val;
+      saveAirportDBToDevice();
       leg[utcField] = val;
       populateDatalist();
     }
@@ -523,6 +555,7 @@ function onUTCChange(id, field, val) {
   const code = (leg[icaoField] || '').trim().toUpperCase();
   if (code) {
     airportDB[code] = val;
+    saveAirportDBToDevice();
     populateDatalist();
   }
   recompute();
@@ -1119,6 +1152,7 @@ function loadFromFile(event) {
       const data = Array.isArray(parsed) ? parsed : parsed.legs;
       if (!Array.isArray(data)) throw new Error('bad format');
       airportDB = (!Array.isArray(parsed) && parsed.airportDB) ? parsed.airportDB : {};
+      saveAirportDBToDevice();
       legs = data.map(d => {
         const leg = newLeg(d.departure || '');
         leg.icaoDep = d.icaoDep || d.icao || '';
