@@ -1,0 +1,1174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0f1419">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="apple-touch-icon" href="./icon-192.png">
+<title>Itinerary v3</title>
+<style>
+  :root {
+    --bg: #0f1419;
+    --panel: #1a2129;
+    --border: #2d3742;
+    --accent: #4a9eff;
+    --text: #e6edf3;
+    --text-dim: #8b98a5;
+    --computed: #22c55e;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 12px;
+  }
+  h1 {
+    font-size: 18px;
+    margin: 4px 0 12px 0;
+    font-weight: 600;
+  }
+  .hint {
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-bottom: 12px;
+  }
+  .table-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    -webkit-overflow-scrolling: touch;
+  }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    min-width: 720px;
+  }
+  th {
+    background: var(--panel);
+    text-align: left;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--text-dim);
+    padding: 8px 6px;
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+  }
+  td {
+    padding: 5px 6px;
+    border-bottom: none;
+    vertical-align: top;
+  }
+  tr.land-row td {
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 8px;
+  }
+  tr.dep-row td {
+    padding-top: 8px;
+  }
+  td.leg-num, td[rowspan="2"] {
+    vertical-align: middle;
+    border-bottom: 1px solid var(--border);
+  }
+  input[type="datetime-local"],
+  input[type="text"] {
+    width: 100%;
+    background: #0d1218;
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 6px;
+    border-radius: 5px;
+    font-size: 13px;
+    font-family: inherit;
+  }
+  input.computed {
+    background: #10251a;
+    border-color: #1f4d33;
+    color: var(--computed);
+    font-weight: 600;
+  }
+  input.dur {
+    width: 64px;
+    text-align: center;
+  }
+  input.icao {
+    width: 62px;
+    text-align: center;
+    text-transform: uppercase;
+  }
+  input.julian {
+    width: 56px;
+    text-align: center;
+  }
+  input.utc {
+    width: 62px;
+    text-align: center;
+  }
+  .offset-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .offset-row input[type="checkbox"] {
+    accent-color: var(--accent);
+    width: 15px;
+    height: 15px;
+    cursor: pointer;
+  }
+  .fdp-options {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+  .fdp-options label {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .fdp-options input[type="radio"] {
+    accent-color: var(--accent);
+    width: 13px;
+    height: 13px;
+    cursor: pointer;
+  }
+  .time-toggles {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 10px;
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+  .time-toggles label {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    cursor: pointer;
+  }
+  .time-toggles input[type="checkbox"] {
+    accent-color: var(--accent);
+    width: 14px;
+    height: 14px;
+    cursor: pointer;
+  }
+  tr.long-ground td {
+    background: rgba(34, 197, 94, 0.16);
+  }
+  .table-wrap.hide-zulu .zulu-text {
+    display: none;
+  }
+  .table-wrap.hide-local .local-text {
+    display: none;
+  }
+  .mission-start-row {
+    display: flex;
+    align-items: flex-end;
+    gap: 10px;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+  }
+  .mission-start {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 10px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    width: fit-content;
+  }
+  .airport-db-btn {
+    height: fit-content;
+  }
+  .airport-panel {
+    display: none;
+    margin-bottom: 14px;
+    padding: 12px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    max-width: 420px;
+  }
+  .airport-panel.open {
+    display: block;
+  }
+  .airport-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 12px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    margin-bottom: 10px;
+  }
+  .airport-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .airport-row:last-child {
+    border-bottom: none;
+  }
+  .airport-code {
+    width: 56px;
+    font-weight: 600;
+    font-size: 13px;
+  }
+  .airport-row input[type="text"] {
+    background: #0d1218;
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 6px;
+    border-radius: 5px;
+    font-size: 13px;
+    font-family: inherit;
+  }
+  .airport-row input#newAirportCode {
+    width: 70px;
+    text-transform: uppercase;
+    text-align: center;
+  }
+  .airport-row input#newAirportUtc,
+  .airport-row input.utc-edit {
+    width: 80px;
+    text-align: center;
+  }
+  .airport-empty {
+    font-size: 12px;
+    color: var(--text-dim);
+    padding: 6px 0;
+  }
+  .local-badge, .dyn-text {
+    color: var(--accent);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .dt-picker {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    flex-wrap: nowrap;
+  }
+  input.dt-date {
+    background: #0d1218;
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 6px 4px;
+    border-radius: 5px;
+    font-size: 12px;
+    font-family: inherit;
+    width: 118px;
+  }
+  input.dt-date.computed {
+    background: #10251a;
+    border-color: #1f4d33;
+    color: var(--computed);
+    font-weight: 600;
+  }
+  select.hh.computed, select.mm.computed {
+    background: #10251a;
+    border-color: #1f4d33;
+    color: var(--computed);
+    font-weight: 600;
+  }
+  .dur-picker {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+  }
+  select.hh, select.mm {
+    background: #0d1218;
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 6px 2px;
+    border-radius: 5px;
+    font-size: 13px;
+    font-family: inherit;
+    width: 46px;
+    text-align: center;
+  }
+  .dur-picker span {
+    color: var(--text-dim);
+    font-size: 12px;
+  }
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .stack {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .stack-label {
+    font-size: 9px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    letter-spacing: 0.03em;
+    margin-bottom: -2px;
+  }
+  .leg-num {
+    color: var(--text-dim);
+    font-size: 12px;
+    text-align: center;
+    width: 28px;
+  }
+  .del-btn {
+    background: none;
+    border: none;
+    color: #ef4444;
+    font-size: 18px;
+    cursor: pointer;
+    padding: 4px 8px;
+  }
+  .controls {
+    margin-top: 12px;
+    display: flex;
+    gap: 8px;
+  }
+  button.add {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    padding: 10px 16px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  button.reset {
+    background: transparent;
+    color: var(--text-dim);
+    border: 1px solid var(--border);
+    padding: 10px 16px;
+    border-radius: 6px;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  .err {
+    color: #ef4444;
+    font-size: 11px;
+  }
+</style>
+</head>
+<body>
+
+<h1>Itinerary v3 <span id="connectionStatus" style="font-size:11px;color:var(--text-dim);font-weight:400;margin-left:8px">● Offline-ready</span></h1>
+<div class="hint">Set the mission start time below, then edit Flight and Ground time per leg — Departure and Landing are computed automatically and shown as read-only Zulu/Local text.</div>
+
+<div class="mission-start-row">
+  <div class="mission-start">
+    <span class="stack-label">Mission Start (Zulu)</span>
+    <div id="tripStartContainer"></div>
+  </div>
+  <button class="reset airport-db-btn" onclick="toggleAirportPanel()">✈️ Airport DB</button>
+</div>
+
+<div class="airport-panel" id="airportPanel">
+  <div class="airport-panel-header">
+    <span>Airport / UTC Database</span>
+    <button class="reset" onclick="toggleAirportPanel()">Close</button>
+  </div>
+  <div id="airportRows"></div>
+  <div class="airport-row airport-add-row">
+    <input type="text" id="newAirportCode" placeholder="ICAO" maxlength="4">
+    <input type="text" id="newAirportUtc" placeholder="±H:MM">
+    <button class="add" onclick="addAirportEntry()">+ Add</button>
+  </div>
+</div>
+
+<div class="time-toggles">
+  <label><input type="checkbox" id="toggleZulu" checked onchange="applyTimeToggles()"> Show Zulu</label>
+  <label><input type="checkbox" id="toggleLocal" checked onchange="applyTimeToggles()"> Show Local</label>
+</div>
+
+<div class="table-wrap" id="tableWrap">
+<table>
+  <thead>
+    <tr>
+      <th></th>
+      <th>ICAO</th>
+      <th>UTC offset</th>
+      <th>Julian date</th>
+      <th>Departure / Landing</th>
+      <th>Flight / Ground<br>(hh:mm)</th>
+      <th>Offset / FDP<br>(hh:mm)</th>
+      <th>FDP Base</th>
+      <th>FDP %</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody id="rows"></tbody>
+</table>
+</div>
+<datalist id="icao-datalist"></datalist>
+
+<div class="controls">
+  <button class="add" onclick="addLeg()">+ Add leg</button>
+  <button class="reset" onclick="saveToFile()">💾 Save</button>
+  <button class="reset" onclick="document.getElementById('loadInput').click()">📂 Load</button>
+  <button class="reset" onclick="exportToText()">📄 Export to Text</button>
+  <button class="reset" onclick="resetAll()">Clear all</button>
+  <input type="file" id="loadInput" accept=".json" style="display:none" onchange="loadFromFile(event)">
+</div>
+<div class="hint" id="saveStatus"></div>
+
+<script>
+let legs = [];
+let nextId = 1;
+let airportDB = {}; // { ICAO: "UTC offset string" }
+
+function populateDatalist() {
+  const dl = document.getElementById('icao-datalist');
+  dl.innerHTML = Object.keys(airportDB).sort().map(code => `<option value="${code}">`).join('');
+}
+
+function toggleAirportPanel() {
+  const panel = document.getElementById('airportPanel');
+  const isOpen = panel.classList.toggle('open');
+  if (isOpen) renderAirportPanel();
+}
+
+function renderAirportPanel() {
+  const container = document.getElementById('airportRows');
+  const codes = Object.keys(airportDB).sort();
+  if (!codes.length) {
+    container.innerHTML = '<div class="airport-empty">No airports saved yet — add one below.</div>';
+    return;
+  }
+  container.innerHTML = codes.map(code => `
+    <div class="airport-row">
+      <span class="airport-code">${code}</span>
+      <input type="text" class="utc-edit" value="${airportDB[code]}" placeholder="±H:MM"
+            onchange="updateAirportEntry('${code}', this.value)">
+      <button class="del-btn" onclick="deleteAirportEntry('${code}')">×</button>
+    </div>
+  `).join('');
+}
+
+function addAirportEntry() {
+  const codeInput = document.getElementById('newAirportCode');
+  const utcInput = document.getElementById('newAirportUtc');
+  const code = codeInput.value.trim().toUpperCase();
+  const utc = utcInput.value.trim();
+  if (!code || !utc) return;
+  airportDB[code] = utc;
+  codeInput.value = '';
+  utcInput.value = '';
+  populateDatalist();
+  renderAirportPanel();
+  recompute();
+}
+
+function updateAirportEntry(code, val) {
+  airportDB[code] = val.trim();
+  recompute();
+}
+
+function deleteAirportEntry(code) {
+  delete airportDB[code];
+  populateDatalist();
+  renderAirportPanel();
+  recompute();
+}
+
+function onICAOChange(id, field, rawValue) {
+  const idx = legs.findIndex(l => l.id === id);
+  const leg = legs[idx];
+  const code = (rawValue || '').trim().toUpperCase();
+  leg[field] = code;
+  const utcField = field === 'icaoDep' ? 'utcDep' : 'utcLand';
+
+  if (!code) {
+    render();
+    return;
+  }
+
+  if (Object.prototype.hasOwnProperty.call(airportDB, code)) {
+    leg[utcField] = airportDB[code];
+  } else {
+    const entered = window.prompt(
+      `New ICAO "${code}" — enter its UTC offset (e.g. -4:00 or +9:30):`
+    );
+    if (entered !== null && entered.trim() !== '') {
+      const val = entered.trim();
+      airportDB[code] = val;
+      leg[utcField] = val;
+      populateDatalist();
+    }
+  }
+  recompute();
+}
+
+function onUTCChange(id, field, val) {
+  const idx = legs.findIndex(l => l.id === id);
+  const leg = legs[idx];
+  leg[field] = val;
+  const icaoField = field === 'utcDep' ? 'icaoDep' : 'icaoLand';
+  const code = (leg[icaoField] || '').trim().toUpperCase();
+  if (code) {
+    airportDB[code] = val;
+    populateDatalist();
+  }
+  recompute();
+}
+
+function newLeg(departure = '') {
+  return { id: nextId++, departure, duration: '', ground: '', offset: '', offsetEnabled: false, _offsetManual: false, fdpBaseHours: null, icaoDep: '', icaoLand: '', utcDep: '', utcLand: '' };
+}
+
+function computeJulian(date) {
+  if (!date || isNaN(date)) return '';
+  const year = date.getFullYear();
+  const month = date.getMonth();
+  const day = date.getDate();
+  const isLeap = (year % 4 === 0 && year % 100 !== 0) || (year % 400 === 0);
+  const daysInMonth = [31, isLeap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  let dayOfYear = day;
+  for (let m = 0; m < month; m++) dayOfYear += daysInMonth[m];
+  const yearDigit = year % 10;
+  return String(yearDigit) + String(dayOfYear).padStart(3, '0');
+}
+
+function parseHHMM(str) {
+  if (!str) return null;
+  const m = str.trim().match(/^(\d{1,3}):([0-5]\d)$/);
+  if (!m) return null;
+  return parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
+}
+
+function fmtHHMM(mins) {
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
+}
+
+function toLocalInputValue(date) {
+  const pad = n => String(n).padStart(2, '0');
+  return date.getFullYear() + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate()) +
+    'T' + pad(date.getHours()) + ':' + pad(date.getMinutes());
+}
+
+const DOW_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const MON_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+function parseOffsetMinutes(str) {
+  if (!str) return null;
+  const m = str.trim().match(/^([+-]?)(\d{1,2})(?::?(\d{2}))?$/);
+  if (!m) return null;
+  const sign = m[1] === '-' ? -1 : 1;
+  const hh = parseInt(m[2], 10);
+  const mm = m[3] ? parseInt(m[3], 10) : 0;
+  return sign * (hh * 60 + mm);
+}
+
+function formatLocalLabel(date) {
+  const pad = n => String(n).padStart(2, '0');
+  const dow = DOW_NAMES[date.getDay()];
+  const mon = MON_NAMES[date.getMonth()];
+  const yy = String(date.getFullYear()).slice(-2);
+  return `${dow}, ${mon} ${pad(date.getDate())}, ${yy} ${pad(date.getHours())}${pad(date.getMinutes())}L`;
+}
+
+function formatZuluLabel(date) {
+  return formatLocalLabel(date).replace(/L$/, 'Z');
+}
+
+function recompute() {
+  let carryDeparture = null;
+  legs.forEach((leg, i) => {
+    if (i > 0 && carryDeparture !== null && !leg._manualDeparture) {
+      leg.departure = toLocalInputValue(carryDeparture);
+    }
+    const depDate = leg.departure ? new Date(leg.departure) : null;
+    leg.julianDep = (depDate && !isNaN(depDate)) ? computeJulian(depDate) : '';
+    leg.zuluDepText = (depDate && !isNaN(depDate)) ? formatZuluLabel(depDate) : '';
+    leg.localDepText = '';
+    if (depDate && !isNaN(depDate)) {
+      const offMin = parseOffsetMinutes(leg.utcDep);
+      if (offMin !== null) {
+        leg.localDepText = formatLocalLabel(new Date(depDate.getTime() + offMin * 60000));
+      }
+    }
+    const durMin = parseHHMM(leg.duration);
+    let landing = null;
+    if (depDate && !isNaN(depDate) && durMin !== null) {
+      landing = new Date(depDate.getTime() + durMin * 60000);
+      leg.landingDisplay = toLocalInputValue(landing);
+      leg.landingError = false;
+    } else {
+      leg.landingDisplay = '';
+      leg.landingError = !!(leg.duration && depDate === null);
+    }
+    leg.julianLand = landing ? computeJulian(landing) : '';
+    leg.zuluLandText = landing ? formatZuluLabel(landing) : '';
+    leg.localLandText = '';
+    if (landing) {
+      const offMin = parseOffsetMinutes(leg.utcLand);
+      if (offMin !== null) {
+        leg.localLandText = formatLocalLabel(new Date(landing.getTime() + offMin * 60000));
+      }
+    }
+    const groundMin = parseHHMM(leg.ground);
+    leg.longGround = groundMin !== null && groundMin > (16 * 60 + 29);
+    if (landing && groundMin !== null) {
+      carryDeparture = new Date(landing.getTime() + groundMin * 60000);
+      leg.nextDepDisplay = toLocalInputValue(carryDeparture);
+    } else {
+      leg.nextDepDisplay = '';
+      carryDeparture = landing;
+    }
+    leg._durMin = durMin;
+    leg._groundMin = groundMin;
+  });
+
+  // Auto-default: the first leg, and any leg immediately after a ground time
+  // > 16:29, gets a 2:45 offset, checked — unless the user has manually
+  // edited that leg's offset.
+  legs.forEach((leg, i) => {
+    if (leg._offsetManual) return;
+    const prevGroundMin = i > 0 ? legs[i - 1]._groundMin : null;
+    const longRest = i === 0 || (prevGroundMin !== null && prevGroundMin > (16 * 60 + 29));
+    if (longRest) {
+      leg.offset = '02:45';
+      leg.offsetEnabled = true;
+    } else {
+      leg.offset = '';
+      leg.offsetEnabled = false;
+    }
+  });
+
+  // FDP: cumulative flight + ground time. A leg's own ground time is folded
+  // into its own FDP total when under 16:30; at or above that, it's excluded
+  // and the duty period resets to zero starting with the next leg's flight.
+  // A leg's Offset is added into its own FDP total only when its checkbox is checked.
+  let runningTotal = 0;
+  legs.forEach(leg => {
+    if (leg._durMin === null) {
+      leg.fdpText = '';
+      leg._fdpMin = null;
+      runningTotal = 0;
+      return;
+    }
+    runningTotal += leg._durMin;
+    if (leg.offsetEnabled) {
+      const offsetMin = parseHHMM(leg.offset);
+      if (offsetMin !== null) runningTotal += offsetMin;
+    }
+    if (leg._groundMin !== null) {
+      if (leg._groundMin > (16 * 60 + 29)) {
+        leg.fdpText = fmtHHMM(runningTotal);
+        leg._fdpMin = runningTotal;
+        runningTotal = 0;
+      } else {
+        runningTotal += leg._groundMin;
+        leg.fdpText = fmtHHMM(runningTotal);
+        leg._fdpMin = runningTotal;
+      }
+    } else {
+      leg.fdpText = fmtHHMM(runningTotal);
+      leg._fdpMin = runningTotal;
+    }
+  });
+
+  // FDP % — only meaningful on legs flagged with a long ground time (the
+  // highlighted rows), comparing accumulated FDP against the chosen base.
+  legs.forEach(leg => {
+    if (leg.longGround && leg.fdpBaseHours && leg._fdpMin !== null && leg._fdpMin !== undefined) {
+      const pct = Math.round((leg._fdpMin / (leg.fdpBaseHours * 60)) * 100);
+      leg.fdpPercentText = pct + '%';
+    } else {
+      leg.fdpPercentText = '';
+    }
+  });
+
+  render();
+}
+
+function applyTimeToggles() {
+  const wrap = document.getElementById('tableWrap');
+  const showZulu = document.getElementById('toggleZulu').checked;
+  const showLocal = document.getElementById('toggleLocal').checked;
+  wrap.classList.toggle('hide-zulu', !showZulu);
+  wrap.classList.toggle('hide-local', !showLocal);
+}
+
+function render() {
+  renderTripStart();
+  const tbody = document.getElementById('rows');
+  tbody.innerHTML = '';
+  legs.forEach((leg, i) => {
+    const trDep = document.createElement('tr');
+    trDep.className = 'dep-row';
+    trDep.innerHTML = `
+      <td class="leg-num" rowspan="2">${i + 1}</td>
+      <td>
+        <div class="field">
+          <span class="stack-label">Dep</span>
+          <input type="text" class="icao" placeholder="ICAO" maxlength="4" list="icao-datalist" value="${leg.icaoDep || ''}"
+                onchange="onICAOChange(${leg.id}, 'icaoDep', this.value)">
+        </div>
+      </td>
+      <td>
+        <div class="field">
+          <span class="stack-label">Dep</span>
+          <input type="text" class="utc" placeholder="±H:MM" value="${leg.utcDep || ''}"
+                onchange="onUTCChange(${leg.id}, 'utcDep', this.value)">
+        </div>
+      </td>
+      <td>
+        <div class="field">
+          <span class="stack-label">Dep</span>
+          <span class="dyn-text">${leg.julianDep || '--'}</span>
+        </div>
+      </td>
+      <td>
+        <div class="field">
+          <span class="stack-label">Dep</span>
+          <span class="dyn-text zulu-text">${leg.zuluDepText || '--'}</span>
+          <span class="dyn-text local-text">${leg.localDepText || ''}</span>
+        </div>
+      </td>
+      <td>
+        <div class="field">
+          <span class="stack-label">Flight</span>
+          ${durationPicker(leg.id, 'duration', leg.duration)}
+        </div>
+      </td>
+      <td>
+        <div class="field">
+          <span class="stack-label">Offset</span>
+          <div class="offset-row">
+            ${durationPicker(leg.id, 'offset', leg.offset)}
+            <input type="checkbox" class="offset-toggle" ${leg.offsetEnabled ? 'checked' : ''}
+                  onchange="toggleOffset(${leg.id}, this.checked)">
+          </div>
+        </div>
+      </td>
+      <td></td>
+      <td></td>
+      <td rowspan="2"><button class="del-btn" onclick="deleteLeg(${leg.id})">×</button></td>
+    `;
+    tbody.appendChild(trDep);
+
+    const trLand = document.createElement('tr');
+    trLand.className = 'land-row' + (leg.longGround ? ' long-ground' : '');
+
+    const fdpOptionsHtml = leg.longGround ? `
+      <div class="fdp-options">
+        <label><input type="radio" name="fdpBase-${leg.id}" value="16" ${leg.fdpBaseHours === 16 ? 'checked' : ''} onchange="selectFdpBase(${leg.id}, 16)"> 16 hr</label>
+        <label><input type="radio" name="fdpBase-${leg.id}" value="18" ${leg.fdpBaseHours === 18 ? 'checked' : ''} onchange="selectFdpBase(${leg.id}, 18)"> 18 hr</label>
+        <label><input type="radio" name="fdpBase-${leg.id}" value="24" ${leg.fdpBaseHours === 24 ? 'checked' : ''} onchange="selectFdpBase(${leg.id}, 24)"> 24 hr</label>
+      </div>
+    ` : '';
+
+    const fdpPercentHtml = leg.longGround ? `
+      <div class="field">
+        <span class="stack-label">FDP %</span>
+        <span class="dyn-text">${leg.fdpPercentText || '--'}</span>
+      </div>
+    ` : '';
+
+    trLand.innerHTML = `
+      <td>
+        <div class="field">
+          <span class="stack-label">Land</span>
+          <input type="text" class="icao" placeholder="ICAO" maxlength="4" list="icao-datalist" value="${leg.icaoLand || ''}"
+                onchange="onICAOChange(${leg.id}, 'icaoLand', this.value)">
+        </div>
+      </td>
+      <td>
+        <div class="field">
+          <span class="stack-label">Land</span>
+          <input type="text" class="utc" placeholder="±H:MM" value="${leg.utcLand || ''}"
+                onchange="onUTCChange(${leg.id}, 'utcLand', this.value)">
+        </div>
+      </td>
+      <td>
+        <div class="field">
+          <span class="stack-label">Land</span>
+          <span class="dyn-text">${leg.julianLand || '--'}</span>
+        </div>
+      </td>
+      <td>
+        <div class="field">
+          <span class="stack-label">Land</span>
+          <span class="dyn-text zulu-text">${leg.zuluLandText || '--'}</span>
+          <span class="dyn-text local-text">${leg.localLandText || ''}</span>
+        </div>
+      </td>
+      <td>
+        <div class="field">
+          <span class="stack-label">Ground</span>
+          ${durationPicker(leg.id, 'ground', leg.ground)}
+        </div>
+      </td>
+      <td>
+        <div class="field">
+          <span class="stack-label">FDP</span>
+          <span class="dyn-text">${leg.fdpText || '--'}</span>
+        </div>
+      </td>
+      <td>${fdpOptionsHtml}</td>
+      <td>${fdpPercentHtml}</td>
+    `;
+    tbody.appendChild(trLand);
+  });
+}
+
+function updateDeparture(id, val) {
+  const idx = legs.findIndex(l => l.id === id);
+  const leg = legs[idx];
+  leg.departure = val;
+  leg._manualDeparture = true;
+
+  // Back-calculate the previous leg's ground time from (this departure - previous landing)
+  if (idx > 0) {
+    const prevLeg = legs[idx - 1];
+    const prevLanding = prevLeg.landingDisplay ? new Date(prevLeg.landingDisplay) : null;
+    const newDep = val ? new Date(val) : null;
+    if (prevLanding && newDep && !isNaN(prevLanding) && !isNaN(newDep)) {
+      const diffMin = Math.round((newDep - prevLanding) / 60000);
+      if (diffMin >= 0) {
+        prevLeg.ground = fmtHHMM(diffMin);
+      }
+    }
+  }
+  recompute();
+}
+
+function updateField(id, field, val) {
+  const idx = legs.findIndex(l => l.id === id);
+  const leg = legs[idx];
+  leg[field] = val;
+
+  // Ground time changed: let it drive the next leg's departure again, even if that
+  // departure was previously typed in manually.
+  if (field === 'ground' && idx + 1 < legs.length) {
+    legs[idx + 1]._manualDeparture = false;
+  }
+
+  if (field === 'offset') {
+    leg._offsetManual = true;
+  }
+
+  recompute();
+}
+
+function toggleOffset(id, checked) {
+  const leg = legs.find(l => l.id === id);
+  leg.offsetEnabled = checked;
+  leg._offsetManual = true;
+  recompute();
+}
+
+function selectFdpBase(id, hours) {
+  const leg = legs.find(l => l.id === id);
+  leg.fdpBaseHours = hours;
+  recompute();
+}
+
+function hourOptions24(selected) {
+  let opts = '';
+  for (let h = 0; h < 24; h++) {
+    const v = String(h).padStart(2, '0');
+    opts += `<option value="${v}"${v === selected ? ' selected' : ''}>${v}</option>`;
+  }
+  return opts;
+}
+
+function dateTimePicker(id, field, value, computed) {
+  let dateStr = '', hh = '00', mm = '00';
+  if (value) {
+    const d = new Date(value);
+    if (!isNaN(d)) {
+      const pad = n => String(n).padStart(2, '0');
+      dateStr = d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+      hh = pad(d.getHours());
+      mm = pad(d.getMinutes());
+    }
+  }
+  const cls = computed ? ' computed' : '';
+  return `
+    <div class="dt-picker" data-leg="${id}" data-field="${field}">
+      <input type="date" class="dt-date${cls}" value="${dateStr}" onchange="onDateTimeChange(this)">
+      <select class="hh${cls}" onchange="onDateTimeChange(this)">${hourOptions24(hh)}</select>
+      <span>:</span>
+      <select class="mm${cls}" onchange="onDateTimeChange(this)">${minuteOptions(mm)}</select>
+    </div>
+  `;
+}
+
+function onDateTimeChange(el) {
+  const wrapper = el.closest('.dt-picker');
+  const id = parseInt(wrapper.dataset.leg, 10);
+  const field = wrapper.dataset.field;
+  const dateVal = wrapper.querySelector('.dt-date').value;
+  const hh = wrapper.querySelector('.hh').value;
+  const mm = wrapper.querySelector('.mm').value;
+  if (!dateVal) return;
+  const combined = dateVal + 'T' + hh + ':' + mm;
+  if (field === 'departure') {
+    updateDeparture(id, combined);
+  } else if (field === 'landing') {
+    overrideLanding(id, combined);
+  } else if (field === 'tripStart') {
+    updateTripStart(combined);
+  }
+}
+
+function updateTripStart(val) {
+  if (!legs.length) return;
+  legs[0].departure = val;
+  legs[0]._manualDeparture = true;
+  recompute();
+}
+
+function renderTripStart() {
+  const container = document.getElementById('tripStartContainer');
+  if (!container) return;
+  const val = legs.length ? legs[0].departure : '';
+  container.innerHTML = dateTimePicker(0, 'tripStart', val, false);
+}
+
+function splitHHMM(str) {
+  const mins = parseHHMM(str);
+  if (mins === null) return ['00', '00'];
+  return [String(Math.floor(mins / 60)).padStart(2, '0'), String(mins % 60).padStart(2, '0')];
+}
+
+function hourOptions(selected) {
+  let opts = '';
+  for (let h = 0; h <= 99; h++) {
+    const v = String(h).padStart(2, '0');
+    opts += `<option value="${v}"${v === selected ? ' selected' : ''}>${v}</option>`;
+  }
+  return opts;
+}
+
+function minuteOptions(selected) {
+  let opts = '';
+  for (let m = 0; m < 60; m++) {
+    const v = String(m).padStart(2, '0');
+    opts += `<option value="${v}"${v === selected ? ' selected' : ''}>${v}</option>`;
+  }
+  return opts;
+}
+
+function durationPicker(id, field, value) {
+  const [hh, mm] = splitHHMM(value);
+  return `
+    <div class="dur-picker" data-leg="${id}" data-field="${field}">
+      <select class="hh" onchange="onDurationChange(this)">${hourOptions(hh)}</select>
+      <span>:</span>
+      <select class="mm" onchange="onDurationChange(this)">${minuteOptions(mm)}</select>
+    </div>
+  `;
+}
+
+function onDurationChange(selectEl) {
+  const wrapper = selectEl.closest('.dur-picker');
+  const id = parseInt(wrapper.dataset.leg, 10);
+  const field = wrapper.dataset.field;
+  const hh = wrapper.querySelector('.hh').value;
+  const mm = wrapper.querySelector('.mm').value;
+  updateField(id, field, hh + ':' + mm);
+}
+
+function overrideLanding(id, val) {
+  // Manual landing override: back-calculate duration from departure if possible, else just recompute chain from this point
+  const leg = legs.find(l => l.id === id);
+  const depDate = leg.departure ? new Date(leg.departure) : null;
+  const landingDate = val ? new Date(val) : null;
+  if (depDate && landingDate && !isNaN(depDate) && !isNaN(landingDate)) {
+    const diffMin = Math.round((landingDate - depDate) / 60000);
+    if (diffMin >= 0) {
+      leg.duration = fmtHHMM(diffMin);
+    }
+  }
+  recompute();
+}
+
+function addLeg() {
+  legs.push(newLeg());
+  recompute();
+}
+
+function deleteLeg(id) {
+  legs = legs.filter(l => l.id !== id);
+  if (legs.length) legs[0]._manualDeparture = true; // keep first leg's departure fixed
+  recompute();
+}
+
+function splitDateTime(text) {
+  if (!text) return { date: '', time: '' };
+  const idx = text.lastIndexOf(' ');
+  return { date: text.slice(0, idx), time: text.slice(idx + 1) };
+}
+
+function exportToText() {
+  const LABEL_W = 6;
+  const LOC_W = 10;
+  const ZULU_DATE_W = 26;
+
+  const lines = [];
+  lines.push('ITINERARY V3');
+  lines.push('Mission Start (Zulu): ' + (legs.length ? (legs[0].zuluDepText || '--') : '--'));
+  lines.push('** = ground time greater than 16:29   [xxxx] = Zulu Julian date');
+  lines.push('');
+
+  const header = ''.padEnd(LABEL_W) + 'LOC'.padEnd(LOC_W) + 'ZULU'.padEnd(ZULU_DATE_W) + 'LOCAL';
+  lines.push(header);
+  const divider = '-'.repeat(header.length);
+  lines.push(divider);
+
+  legs.forEach(leg => {
+    const stops = [
+      { label: 'Dep', icao: leg.icaoDep, zulu: leg.zuluDepText, local: leg.localDepText, julian: leg.julianDep, ground: null },
+      { label: 'Arr', icao: leg.icaoLand, zulu: leg.zuluLandText, local: leg.localLandText, julian: leg.julianLand,
+        ground: leg.longGround ? leg.ground : null }
+    ];
+    stops.forEach(stop => {
+      const zulu = splitDateTime(stop.zulu);
+      const local = splitDateTime(stop.local);
+      const line1 = stop.label.padEnd(LABEL_W) +
+        (stop.icao || '--').padEnd(LOC_W) +
+        zulu.date.padEnd(ZULU_DATE_W) +
+        local.date;
+
+      const groundCell = stop.ground ? ('**' + stop.ground + '**') : '';
+      const julianCell = stop.julian ? ('[' + stop.julian + ']') : '';
+      const zuluCell = (julianCell + (julianCell ? ' ' : '') + zulu.time);
+      const line2 = ''.padEnd(LABEL_W) +
+        groundCell.padEnd(LOC_W) +
+        zuluCell.padEnd(ZULU_DATE_W) +
+        local.time;
+
+      lines.push(line1);
+      lines.push(line2);
+      lines.push(divider);
+    });
+  });
+
+  const text = lines.join('\n') + '\n';
+  const blob = new Blob([text], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-');
+  a.href = url;
+  a.download = `itinerary-v3-${stamp}.txt`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  flashStatus('Exported to text.');
+}
+
+function saveToFile() {
+  const legsData = legs.map(l => ({
+    icaoDep: l.icaoDep || '',
+    icaoLand: l.icaoLand || '',
+    utcDep: l.utcDep || '',
+    utcLand: l.utcLand || '',
+    departure: l.departure || '',
+    duration: l.duration || '',
+    ground: l.ground || '',
+    offset: l.offset || '',
+    offsetEnabled: !!l.offsetEnabled,
+    offsetManual: !!l._offsetManual,
+    fdpBaseHours: l.fdpBaseHours || null,
+    manual: !!l._manualDeparture
+  }));
+  const payload = { legs: legsData, airportDB: airportDB };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-');
+  a.href = url;
+  a.download = `itinerary-v3-${stamp}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  flashStatus('Saved.');
+}
+
+function loadFromFile(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const parsed = JSON.parse(e.target.result);
+      // Support both the new { legs, airportDB } format and the old plain-array format.
+      const data = Array.isArray(parsed) ? parsed : parsed.legs;
+      if (!Array.isArray(data)) throw new Error('bad format');
+      airportDB = (!Array.isArray(parsed) && parsed.airportDB) ? parsed.airportDB : {};
+      legs = data.map(d => {
+        const leg = newLeg(d.departure || '');
+        leg.icaoDep = d.icaoDep || d.icao || '';
+        leg.icaoLand = d.icaoLand || '';
+        leg.utcDep = d.utcDep || '';
+        leg.utcLand = d.utcLand || '';
+        leg.duration = d.duration || '';
+        leg.ground = d.ground || '';
+        leg.offset = d.offset || '';
+        leg.offsetEnabled = !!d.offsetEnabled;
+        leg._offsetManual = !!d.offsetManual;
+        leg.fdpBaseHours = d.fdpBaseHours || null;
+        leg._manualDeparture = !!d.manual;
+        return leg;
+      });
+      if (legs.length) legs[0]._manualDeparture = true;
+      populateDatalist();
+      recompute();
+      flashStatus('Loaded ' + legs.length + ' leg(s).');
+    } catch (err) {
+      flashStatus('Could not read that file.', true);
+    }
+  };
+  reader.readAsText(file);
+  event.target.value = '';
+}
+
+function flashStatus(msg, isError) {
+  const el = document.getElementById('saveStatus');
+  el.textContent = msg;
+  el.style.color = isError ? '#ef4444' : 'var(--text-dim)';
+  setTimeout(() => { if (el.textContent === msg) el.textContent = ''; }, 3000);
+}
+
+function resetAll() {
+  if (!confirm('Clear all legs?')) return;
+  legs = [];
+  nextId = 1;
+  const first = newLeg();
+  first._manualDeparture = true;
+  legs.push(first);
+  recompute();
+}
+
+// init
+const first = newLeg();
+first._manualDeparture = true;
+legs.push(first);
+recompute();
+</script>
+
+</body>
+</html>
