@@ -2,8 +2,11 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Itinerary v4</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0f1419">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="apple-touch-icon" href="./icon-192.png">
+<title>Itinerary v3</title>
 <style>
   :root {
     --bg: #0f1419;
@@ -115,18 +118,6 @@
     width: 15px;
     height: 15px;
     cursor: pointer;
-  }
-  .offset-slider {
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
-    width: 110px;
-  }
-  .offset-slider input[type="range"] {
-    width: 100%;
-    accent-color: var(--accent);
-    cursor: pointer;
-    height: 4px;
   }
   .fdp-options {
     display: flex;
@@ -377,7 +368,7 @@
 </head>
 <body>
 
-<h1>Itinerary v4</h1>
+<h1>Itinerary v3 <span id="connectionStatus" style="font-size:11px;color:var(--text-dim);font-weight:400;margin-left:8px">● Offline-ready</span></h1>
 <div class="hint">Set the mission start time below, then edit Flight and Ground time per leg — Departure and Landing are computed automatically and shown as read-only Zulu/Local text.</div>
 
 <div class="mission-start-row">
@@ -503,10 +494,6 @@ function onICAOChange(id, field, rawValue) {
   leg[field] = code;
   const utcField = field === 'icaoDep' ? 'utcDep' : 'utcLand';
 
-  if (field === 'icaoDep') {
-    leg._icaoDepManual = true;
-  }
-
   if (!code) {
     render();
     return;
@@ -542,7 +529,7 @@ function onUTCChange(id, field, val) {
 }
 
 function newLeg(departure = '') {
-  return { id: nextId++, departure, duration: '', ground: '', offset: '', offsetEnabled: false, _offsetManual: false, fdpBaseHours: null, icaoDep: '', icaoLand: '', utcDep: '', utcLand: '', _icaoDepManual: false };
+  return { id: nextId++, departure, duration: '', ground: '', offset: '', offsetEnabled: false, _offsetManual: false, fdpBaseHours: null, icaoDep: '', icaoLand: '', utcDep: '', utcLand: '' };
 }
 
 function computeJulian(date) {
@@ -569,27 +556,6 @@ function fmtHHMM(mins) {
   const h = Math.floor(mins / 60);
   const m = mins % 60;
   return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
-}
-
-function offsetSlider(id, value) {
-  const mins = parseHHMM(value);
-  const startMin = mins !== null ? mins : 0;
-  return `
-    <div class="offset-slider">
-      <input type="range" min="0" max="1440" step="5" value="${startMin}"
-            oninput="document.getElementById('offsetLabel-${id}').textContent = fmtHHMM(parseInt(this.value,10))"
-            onchange="onOffsetSliderChange(${id}, this.value)">
-      <span id="offsetLabel-${id}" class="dyn-text">${fmtHHMM(startMin)}</span>
-    </div>
-  `;
-}
-
-function onOffsetSliderChange(id, val) {
-  const leg = legs.find(l => l.id === id);
-  const mins = Math.max(0, Math.min(1440, parseInt(val, 10) || 0));
-  leg.offset = fmtHHMM(mins);
-  leg._offsetManual = true;
-  recompute();
 }
 
 function toLocalInputValue(date) {
@@ -624,20 +590,6 @@ function formatZuluLabel(date) {
 }
 
 function recompute() {
-  // Default each leg's Departure ICAO to the previous leg's Landing ICAO,
-  // unless the user has manually edited this leg's Departure ICAO.
-  for (let i = 1; i < legs.length; i++) {
-    const leg = legs[i];
-    if (leg._icaoDepManual) continue;
-    const prevLand = legs[i - 1].icaoLand || '';
-    if (leg.icaoDep !== prevLand) {
-      leg.icaoDep = prevLand;
-      if (prevLand && Object.prototype.hasOwnProperty.call(airportDB, prevLand)) {
-        leg.utcDep = airportDB[prevLand];
-      }
-    }
-  }
-
   let carryDeparture = null;
   legs.forEach((leg, i) => {
     if (i > 0 && carryDeparture !== null && !leg._manualDeparture) {
@@ -802,7 +754,7 @@ function render() {
         <div class="field">
           <span class="stack-label">Offset</span>
           <div class="offset-row">
-            ${offsetSlider(leg.id, leg.offset)}
+            ${durationPicker(leg.id, 'offset', leg.offset)}
             <input type="checkbox" class="offset-toggle" ${leg.offsetEnabled ? 'checked' : ''}
                   onchange="toggleOffset(${leg.id}, this.checked)">
           </div>
@@ -1075,7 +1027,7 @@ function exportToText() {
   const ZULU_DATE_W = 26;
 
   const lines = [];
-  lines.push('ITINERARY V4');
+  lines.push('ITINERARY V3');
   lines.push('Mission Start (Zulu): ' + (legs.length ? (legs[0].zuluDepText || '--') : '--'));
   lines.push('** = ground time greater than 16:29   [xxxx] = Zulu Julian date');
   lines.push('');
@@ -1119,7 +1071,7 @@ function exportToText() {
   const a = document.createElement('a');
   const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-');
   a.href = url;
-  a.download = `itinerary-v4-${stamp}.txt`;
+  a.download = `itinerary-v3-${stamp}.txt`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -1140,7 +1092,6 @@ function saveToFile() {
     offsetEnabled: !!l.offsetEnabled,
     offsetManual: !!l._offsetManual,
     fdpBaseHours: l.fdpBaseHours || null,
-    icaoDepManual: !!l._icaoDepManual,
     manual: !!l._manualDeparture
   }));
   const payload = { legs: legsData, airportDB: airportDB };
@@ -1149,7 +1100,7 @@ function saveToFile() {
   const a = document.createElement('a');
   const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-');
   a.href = url;
-  a.download = `itinerary-v4-${stamp}.json`;
+  a.download = `itinerary-v3-${stamp}.json`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -1180,7 +1131,6 @@ function loadFromFile(event) {
         leg.offsetEnabled = !!d.offsetEnabled;
         leg._offsetManual = !!d.offsetManual;
         leg.fdpBaseHours = d.fdpBaseHours || null;
-        leg._icaoDepManual = !!d.icaoDepManual;
         leg._manualDeparture = !!d.manual;
         return leg;
       });
