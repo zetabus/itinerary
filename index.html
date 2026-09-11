@@ -199,12 +199,25 @@
   .mission-start {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 6px;
     padding: 10px;
     background: var(--panel);
     border: 1px solid var(--border);
     border-radius: 8px;
     width: fit-content;
+    min-width: 220px;
+  }
+  .mission-start .offset-slider {
+    width: 100%;
+  }
+  .mission-start input[type="date"] {
+    background: #0d1218;
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 6px 4px;
+    border-radius: 5px;
+    font-size: 13px;
+    font-family: inherit;
   }
   .airport-db-btn {
     height: fit-content;
@@ -216,7 +229,7 @@
     background: var(--panel);
     border: 1px solid var(--border);
     border-radius: 8px;
-    max-width: 420px;
+    max-width: 480px;
   }
   .airport-panel.open {
     display: block;
@@ -258,11 +271,6 @@
   .airport-row input#newAirportCode {
     width: 70px;
     text-transform: uppercase;
-    text-align: center;
-  }
-  .airport-row input#newAirportUtc,
-  .airport-row input.utc-edit {
-    width: 80px;
     text-align: center;
   }
   .airport-empty {
@@ -358,6 +366,21 @@
     cursor: pointer;
     padding: 4px 8px;
   }
+  .ins-btn {
+    background: none;
+    border: none;
+    color: var(--accent);
+    font-size: 18px;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 4px 6px;
+  }
+  .leg-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+  }
   .controls {
     margin-top: 12px;
     display: flex;
@@ -391,7 +414,7 @@
 <body>
 
 <h1>Itinerary</h1>
-<div class="hint">Set the mission start time below, then edit Flight and Ground time per leg — Departure and Landing are computed automatically and shown as read-only Zulu/Local text.</div>
+<div class="hint">Set the mission start time below, then edit Flight and Ground time per leg — Departure and Landing are computed automatically. Use + on any leg to insert a new leg before it.</div>
 
 <div class="mission-start-row">
   <div class="mission-start">
@@ -409,7 +432,11 @@
   <div id="airportRows"></div>
   <div class="airport-row airport-add-row">
     <input type="text" id="newAirportCode" placeholder="ICAO" maxlength="4">
-    <input type="text" id="newAirportUtc" placeholder="±H:MM">
+    <div class="offset-slider" style="width:110px">
+      <input type="range" id="newAirportUtcSlider" min="-720" max="840" step="15" value="0"
+            oninput="document.getElementById('newAirportUtcLabel').textContent = fmtOffset(parseInt(this.value,10))">
+      <span id="newAirportUtcLabel" class="dyn-text">+00:00</span>
+    </div>
     <button class="add" onclick="addAirportEntry()">+ Add</button>
   </div>
 </div>
@@ -498,8 +525,7 @@ function renderAirportPanel() {
   container.innerHTML = codes.map(code => `
     <div class="airport-row">
       <span class="airport-code">${code}</span>
-      <input type="text" class="utc-edit" value="${airportDB[code]}" placeholder="±H:MM"
-            onchange="updateAirportEntry('${code}', this.value)">
+      ${utcOffsetSlider('airportUtcLabel-' + code, airportDB[code], `onAirportUtcSliderChange('${code}', this.value)`)}
       <button class="del-btn" onclick="deleteAirportEntry('${code}')">×</button>
     </div>
   `).join('');
@@ -507,14 +533,16 @@ function renderAirportPanel() {
 
 function addAirportEntry() {
   const codeInput = document.getElementById('newAirportCode');
-  const utcInput = document.getElementById('newAirportUtc');
+  const slider = document.getElementById('newAirportUtcSlider');
   const code = codeInput.value.trim().toUpperCase();
-  const utc = utcInput.value.trim();
-  if (!code || !utc) return;
+  if (!code || !slider) return;
+  const mins = Math.max(UTC_OFFSET_MIN, Math.min(UTC_OFFSET_MAX, parseInt(slider.value, 10) || 0));
+  const utc = fmtOffset(mins);
   airportDB[code] = utc;
   saveAirportDB();
   codeInput.value = '';
-  utcInput.value = '';
+  slider.value = 0;
+  document.getElementById('newAirportUtcLabel').textContent = '+00:00';
   populateDatalist();
   renderAirportPanel();
   recompute();
@@ -524,6 +552,11 @@ function updateAirportEntry(code, val) {
   airportDB[code] = val.trim();
   saveAirportDB();
   recompute();
+}
+
+function onAirportUtcSliderChange(code, val) {
+  const mins = Math.max(UTC_OFFSET_MIN, Math.min(UTC_OFFSET_MAX, parseInt(val, 10) || 0));
+  updateAirportEntry(code, fmtOffset(mins));
 }
 
 function deleteAirportEntry(code) {
@@ -581,8 +614,13 @@ function onUTCChange(id, field, val) {
   recompute();
 }
 
+function onUTCSliderChange(id, field, val) {
+  const mins = Math.max(UTC_OFFSET_MIN, Math.min(UTC_OFFSET_MAX, parseInt(val, 10) || 0));
+  onUTCChange(id, field, fmtOffset(mins));
+}
+
 function newLeg(departure = '') {
-  return { id: nextId++, departure, duration: '', ground: '', offset: '', offsetEnabled: false, _offsetManual: false, fdpBaseHours: null, icaoDep: '', icaoLand: '', utcDep: '', utcLand: '', _icaoDepManual: false };
+  return { id: nextId++, departure, duration: '', ground: '02:45', offset: '', offsetEnabled: false, _offsetManual: false, fdpBaseHours: null, _fdpBaseManual: false, icaoDep: '', icaoLand: '', utcDep: '', utcLand: '', _icaoDepManual: false };
 }
 
 function computeJulian(date) {
@@ -611,13 +649,17 @@ function fmtHHMM(mins) {
   return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
 }
 
+function snap5(mins) {
+  return Math.round((mins || 0) / 5) * 5;
+}
+
 function offsetSlider(id, value) {
   const mins = parseHHMM(value);
-  const startMin = mins !== null ? mins : 0;
+  const startMin = snap5(mins !== null ? mins : 0);
   return `
     <div class="offset-slider">
       <input type="range" min="0" max="1440" step="5" value="${startMin}"
-            oninput="document.getElementById('offsetLabel-${id}').textContent = fmtHHMM(parseInt(this.value,10))"
+            oninput="document.getElementById('offsetLabel-${id}').textContent = fmtHHMM(snap5(parseInt(this.value,10)))"
             onchange="onOffsetSliderChange(${id}, this.value)">
       <span id="offsetLabel-${id}" class="dyn-text">${fmtHHMM(startMin)}</span>
     </div>
@@ -626,7 +668,7 @@ function offsetSlider(id, value) {
 
 function onOffsetSliderChange(id, val) {
   const leg = legs.find(l => l.id === id);
-  const mins = Math.max(0, Math.min(1440, parseInt(val, 10) || 0));
+  const mins = Math.max(0, Math.min(1440, snap5(parseInt(val, 10) || 0)));
   leg.offset = fmtHHMM(mins);
   leg._offsetManual = true;
   recompute();
@@ -649,6 +691,34 @@ function parseOffsetMinutes(str) {
   const hh = parseInt(m[2], 10);
   const mm = m[3] ? parseInt(m[3], 10) : 0;
   return sign * (hh * 60 + mm);
+}
+
+function fmtOffset(mins) {
+  if (mins === null || mins === undefined || isNaN(mins)) return '+00:00';
+  const sign = mins < 0 ? '-' : '+';
+  const abs = Math.abs(Math.round(mins));
+  const h = Math.floor(abs / 60);
+  const m = abs % 60;
+  return sign + String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
+}
+
+const UTC_OFFSET_MIN = -720; // -12:00
+const UTC_OFFSET_MAX = 840;  // +14:00
+
+function utcOffsetSlider(labelId, value, onChangeJs) {
+  let mins = parseOffsetMinutes(value);
+  if (mins === null) mins = 0;
+  mins = Math.max(UTC_OFFSET_MIN, Math.min(UTC_OFFSET_MAX, mins));
+  // Snap to nearest 15 min for the slider
+  mins = Math.round(mins / 15) * 15;
+  return `
+    <div class="offset-slider">
+      <input type="range" min="${UTC_OFFSET_MIN}" max="${UTC_OFFSET_MAX}" step="15" value="${mins}"
+            oninput="document.getElementById('${labelId}').textContent = fmtOffset(parseInt(this.value,10))"
+            onchange="${onChangeJs}">
+      <span id="${labelId}" class="dyn-text">${fmtOffset(mins)}</span>
+    </div>
+  `;
 }
 
 function formatLocalLabel(date) {
@@ -745,15 +815,23 @@ function recompute() {
   // into its own FDP total when under 16:30; at or above that, it's excluded
   // and the duty period resets to zero starting with the next leg's flight.
   // A leg's Offset is added into its own FDP total only when its checkbox is checked.
+  //
+  // Auto FDP base selection for a closed duty (long ground):
+  //   ≥1 leg ≥6h  OR  ≥2 legs ≥4h  → 24 hr
+  //   ≥1 leg ≥5h  OR  ≥2 legs ≥3h  → 18 hr
+  //   otherwise                    → 16 hr
   let runningTotal = 0;
+  let dutyFlights = []; // flight durations (minutes) in the current open duty
   legs.forEach(leg => {
     if (leg._durMin === null) {
       leg.fdpText = '';
       leg._fdpMin = null;
       runningTotal = 0;
+      dutyFlights = [];
       return;
     }
     runningTotal += leg._durMin;
+    dutyFlights.push(leg._durMin);
     if (leg.offsetEnabled) {
       const offsetMin = parseHHMM(leg.offset);
       if (offsetMin !== null) runningTotal += offsetMin;
@@ -762,7 +840,12 @@ function recompute() {
       if (leg._groundMin > (16 * 60 + 29)) {
         leg.fdpText = fmtHHMM(runningTotal);
         leg._fdpMin = runningTotal;
+        // Auto-select FDP base from the flights that made up this duty
+        if (!leg._fdpBaseManual) {
+          leg.fdpBaseHours = selectFdpBaseFromFlights(dutyFlights);
+        }
         runningTotal = 0;
+        dutyFlights = [];
       } else {
         runningTotal += leg._groundMin;
         leg.fdpText = fmtHHMM(runningTotal);
@@ -774,14 +857,18 @@ function recompute() {
     }
   });
 
-  // FDP % — only meaningful on legs flagged with a long ground time (the
-  // highlighted rows), comparing accumulated FDP against the chosen base.
+  // FDP % and Slip — only meaningful on legs flagged with a long ground time
+  // (the highlighted rows). Slip = selected FDP base − total FDP on that leg.
   legs.forEach(leg => {
     if (leg.longGround && leg.fdpBaseHours && leg._fdpMin !== null && leg._fdpMin !== undefined) {
-      const pct = Math.round((leg._fdpMin / (leg.fdpBaseHours * 60)) * 100);
+      const baseMin = leg.fdpBaseHours * 60;
+      const pct = Math.round((leg._fdpMin / baseMin) * 100);
       leg.fdpPercentText = pct + '%';
+      const slipMin = baseMin - leg._fdpMin;
+      leg.slipText = (slipMin < 0 ? '−' : '') + fmtHHMM(Math.abs(slipMin));
     } else {
       leg.fdpPercentText = '';
+      leg.slipText = '';
     }
   });
 
@@ -797,7 +884,8 @@ function applyTimeToggles() {
 }
 
 function render() {
-  renderTripStart();
+  // Mission start controls are persistent — only synced from model on load/reset/etc.
+  // Do NOT rebuild them here or the range input is destroyed mid-drag.
   const tbody = document.getElementById('rows');
   tbody.innerHTML = '';
   legs.forEach((leg, i) => {
@@ -815,8 +903,7 @@ function render() {
       <td>
         <div class="field">
           <span class="stack-label">Dep</span>
-          <input type="text" class="utc" placeholder="±H:MM" value="${leg.utcDep || ''}"
-                onchange="onUTCChange(${leg.id}, 'utcDep', this.value)">
+          ${utcOffsetSlider('utcDepLabel-' + leg.id, leg.utcDep, `onUTCSliderChange(${leg.id}, 'utcDep', this.value)`)}
         </div>
       </td>
       <td>
@@ -850,7 +937,12 @@ function render() {
       </td>
       <td></td>
       <td></td>
-      <td rowspan="2"><button class="del-btn" onclick="deleteLeg(${leg.id})">×</button></td>
+      <td rowspan="2">
+        <div class="leg-actions">
+          <button class="ins-btn" onclick="insertLegBefore(${leg.id})" title="Insert leg before this one">+</button>
+          <button class="del-btn" onclick="deleteLeg(${leg.id})" title="Delete leg">×</button>
+        </div>
+      </td>
     `;
     tbody.appendChild(trDep);
 
@@ -869,6 +961,8 @@ function render() {
       <div class="field">
         <span class="stack-label">FDP %</span>
         <span class="dyn-text">${leg.fdpPercentText || '--'}</span>
+        <span class="stack-label" style="margin-top:4px">Slip</span>
+        <span class="dyn-text">${leg.slipText || '--'}</span>
       </div>
     ` : '';
 
@@ -883,8 +977,7 @@ function render() {
       <td>
         <div class="field">
           <span class="stack-label">Land</span>
-          <input type="text" class="utc" placeholder="±H:MM" value="${leg.utcLand || ''}"
-                onchange="onUTCChange(${leg.id}, 'utcLand', this.value)">
+          ${utcOffsetSlider('utcLandLabel-' + leg.id, leg.utcLand, `onUTCSliderChange(${leg.id}, 'utcLand', this.value)`)}
         </div>
       </td>
       <td>
@@ -931,7 +1024,7 @@ function updateDeparture(id, val) {
     const prevLanding = prevLeg.landingDisplay ? new Date(prevLeg.landingDisplay) : null;
     const newDep = val ? new Date(val) : null;
     if (prevLanding && newDep && !isNaN(prevLanding) && !isNaN(newDep)) {
-      const diffMin = Math.round((newDep - prevLanding) / 60000);
+      const diffMin = snap5(Math.round((newDep - prevLanding) / 60000));
       if (diffMin >= 0) {
         prevLeg.ground = fmtHHMM(diffMin);
       }
@@ -965,9 +1058,23 @@ function toggleOffset(id, checked) {
   recompute();
 }
 
+function selectFdpBaseFromFlights(flightMins) {
+  // Priority: 24 → 18 → 16
+  const ge6 = flightMins.filter(m => m >= 6 * 60).length;
+  const ge4 = flightMins.filter(m => m >= 4 * 60).length;
+  if (ge6 >= 1 || ge4 >= 2) return 24;
+
+  const ge5 = flightMins.filter(m => m >= 5 * 60).length;
+  const ge3 = flightMins.filter(m => m >= 3 * 60).length;
+  if (ge5 >= 1 || ge3 >= 2) return 18;
+
+  return 16;
+}
+
 function selectFdpBase(id, hours) {
   const leg = legs.find(l => l.id === id);
   leg.fdpBaseHours = hours;
+  leg._fdpBaseManual = true;
   recompute();
 }
 
@@ -1027,11 +1134,64 @@ function updateTripStart(val) {
   recompute();
 }
 
-function renderTripStart() {
+function buildTripStartUI() {
   const container = document.getElementById('tripStartContainer');
-  if (!container) return;
+  if (!container || container.dataset.built) return;
+  container.dataset.built = '1';
+  container.innerHTML = `
+    <input type="date" id="tripStartDate" onchange="onMissionStartChange()">
+    <div class="offset-slider">
+      <input type="range" id="tripStartSlider" min="0" max="1435" step="5" value="0"
+            oninput="document.getElementById('tripStartLabel').textContent = fmtHHMM(snap5(parseInt(this.value,10)))"
+            onchange="onMissionStartChange()">
+      <span id="tripStartLabel" class="dyn-text">00:00</span>
+    </div>
+  `;
+}
+
+function syncTripStartFromModel() {
+  buildTripStartUI();
+  const dateEl = document.getElementById('tripStartDate');
+  const slider = document.getElementById('tripStartSlider');
+  const label = document.getElementById('tripStartLabel');
+  if (!dateEl || !slider || !label) return;
+
   const val = legs.length ? legs[0].departure : '';
-  container.innerHTML = dateTimePicker(0, 'tripStart', val, false);
+  let dateStr = '';
+  let minsOfDay = 0;
+  if (val) {
+    const d = new Date(val);
+    if (!isNaN(d)) {
+      const pad = n => String(n).padStart(2, '0');
+      dateStr = d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+      minsOfDay = d.getHours() * 60 + d.getMinutes();
+    }
+  }
+  minsOfDay = snap5(minsOfDay);
+  dateEl.value = dateStr;
+  slider.value = minsOfDay;
+  label.textContent = fmtHHMM(minsOfDay);
+}
+
+function onMissionStartChange() {
+  const dateEl = document.getElementById('tripStartDate');
+  const slider = document.getElementById('tripStartSlider');
+  if (!dateEl || !slider) return;
+
+  let dateVal = dateEl.value;
+  // If the user moves the time slider before picking a date, default to today.
+  if (!dateVal) {
+    const now = new Date();
+    const pad = n => String(n).padStart(2, '0');
+    dateVal = now.getFullYear() + '-' + pad(now.getMonth() + 1) + '-' + pad(now.getDate());
+    dateEl.value = dateVal;
+  }
+
+  const mins = Math.max(0, Math.min(1435, snap5(parseInt(slider.value, 10) || 0)));
+  const hh = String(Math.floor(mins / 60)).padStart(2, '0');
+  const mm = String(mins % 60).padStart(2, '0');
+  const combined = dateVal + 'T' + hh + ':' + mm;
+  updateTripStart(combined);
 }
 
 function splitHHMM(str) {
@@ -1058,24 +1218,28 @@ function minuteOptions(selected) {
   return opts;
 }
 
-function durationPicker(id, field, value) {
-  const [hh, mm] = splitHHMM(value);
+function durationSlider(id, field, value) {
+  const mins = parseHHMM(value);
+  const startMin = snap5(mins !== null ? Math.min(mins, 2880) : 0);
+  const labelId = `durLabel-${id}-${field}`;
   return `
-    <div class="dur-picker" data-leg="${id}" data-field="${field}">
-      <select class="hh" onchange="onDurationChange(this)">${hourOptions(hh)}</select>
-      <span>:</span>
-      <select class="mm" onchange="onDurationChange(this)">${minuteOptions(mm)}</select>
+    <div class="offset-slider">
+      <input type="range" min="0" max="2880" step="5" value="${startMin}"
+            oninput="document.getElementById('${labelId}').textContent = fmtHHMM(snap5(parseInt(this.value,10)))"
+            onchange="onDurationSliderChange(${id}, '${field}', this.value)">
+      <span id="${labelId}" class="dyn-text">${fmtHHMM(startMin)}</span>
     </div>
   `;
 }
 
-function onDurationChange(selectEl) {
-  const wrapper = selectEl.closest('.dur-picker');
-  const id = parseInt(wrapper.dataset.leg, 10);
-  const field = wrapper.dataset.field;
-  const hh = wrapper.querySelector('.hh').value;
-  const mm = wrapper.querySelector('.mm').value;
-  updateField(id, field, hh + ':' + mm);
+function onDurationSliderChange(id, field, val) {
+  const mins = Math.max(0, Math.min(2880, snap5(parseInt(val, 10) || 0)));
+  updateField(id, field, fmtHHMM(mins));
+}
+
+// Keep the old name as an alias so existing call sites continue to work
+function durationPicker(id, field, value) {
+  return durationSlider(id, field, value);
 }
 
 function overrideLanding(id, val) {
@@ -1097,10 +1261,27 @@ function addLeg() {
   recompute();
 }
 
+function insertLegBefore(id) {
+  const idx = legs.findIndex(l => l.id === id);
+  if (idx === -1) return;
+  const newL = newLeg();
+  // When inserting at the top, the new leg becomes the mission-start holder.
+  // Keep the previous first leg's times intact by leaving its _manualDeparture flag alone;
+  // the new first leg starts empty so the user can set a fresh mission start if desired.
+  if (idx === 0) {
+    newL._manualDeparture = true;
+  }
+  legs.splice(idx, 0, newL);
+  recompute();
+  if (idx === 0) syncTripStartFromModel();
+}
+
 function deleteLeg(id) {
+  const wasFirst = legs.length && legs[0].id === id;
   legs = legs.filter(l => l.id !== id);
   if (legs.length) legs[0]._manualDeparture = true; // keep first leg's departure fixed
   recompute();
+  if (wasFirst) syncTripStartFromModel();
 }
 
 function splitDateTime(text) {
@@ -1180,6 +1361,7 @@ function saveToFile() {
     offsetEnabled: !!l.offsetEnabled,
     offsetManual: !!l._offsetManual,
     fdpBaseHours: l.fdpBaseHours || null,
+    fdpBaseManual: !!l._fdpBaseManual,
     icaoDepManual: !!l._icaoDepManual,
     manual: !!l._manualDeparture
   }));
@@ -1222,6 +1404,7 @@ function loadFromFile(event) {
         leg.offsetEnabled = !!d.offsetEnabled;
         leg._offsetManual = !!d.offsetManual;
         leg.fdpBaseHours = d.fdpBaseHours || null;
+        leg._fdpBaseManual = !!d.fdpBaseManual;
         leg._icaoDepManual = !!d.icaoDepManual;
         leg._manualDeparture = !!d.manual;
         return leg;
@@ -1229,6 +1412,7 @@ function loadFromFile(event) {
       if (legs.length) legs[0]._manualDeparture = true;
       populateDatalist();
       recompute();
+      syncTripStartFromModel();
       flashStatus('Loaded ' + legs.length + ' leg(s).');
     } catch (err) {
       flashStatus('Could not read that file.', true);
@@ -1253,6 +1437,7 @@ function resetAll() {
   first._manualDeparture = true;
   legs.push(first);
   recompute();
+  syncTripStartFromModel();
 }
 
 // init
@@ -1261,7 +1446,9 @@ populateDatalist();
 const first = newLeg();
 first._manualDeparture = true;
 legs.push(first);
+buildTripStartUI();
 recompute();
+syncTripStartFromModel();
 
 // PWA: register service worker for offline caching
 if ('serviceWorker' in navigator) {
